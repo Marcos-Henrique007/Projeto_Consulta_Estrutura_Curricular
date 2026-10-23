@@ -1,77 +1,72 @@
 
-# Modelos Lógicos dos Bancos de Dados
+# Modelagem de Dados — Estrutura Curricular
 
-Este documento apresenta os modelos lógicos utilizados no projeto de consulta à estrutura curricular, considerando os bancos de dados relacional, não relacional orientado a documentos e não relacional orientado a grafos.
+## 1. Introdução
 
-## 1. Modelo Relacional
+Este documento apresenta três modelos de dados para representar uma estrutura curricular: o modelo relacional, o modelo não relacional orientado a documentos e o modelo não relacional orientado a grafos.
 
-### Entidade Curso
+Os três modelos representam cursos, disciplinas e seus pré-requisitos, mas organizam essas informações de maneiras diferentes.
 
+## 2. Modelo Relacional
+
+### 2.1. Entidades e atributos
+
+**Curso**
 - `id`: identificador do curso (chave primária).
 - `nome`: nome do curso.
-- `instituicao`: instituição de ensino.
+- `instituicao`: instituição de ensino responsável.
 
-### Entidade Disciplinas
-
+**Disciplinas**
 - `id`: identificador da disciplina (chave primária).
 - `codigo`: código da disciplina.
 - `nome`: nome da disciplina.
 - `carga_horaria`: carga horária da disciplina.
 - `curso_id`: identificador do curso ao qual a disciplina pertence (chave estrangeira).
 
-### Tabela pre_requisitos
+**pre_requisitos**
+- `disciplina_id`: identificador da disciplina que possui um pré-requisito.
+- `requisito_id`: identificador da disciplina exigida como pré-requisito.
 
-- `disciplina_id`: identificador da disciplina que possui um pré-requisito (chave estrangeira).
-- `requisito_id`: identificador da disciplina exigida como pré-requisito (chave estrangeira).
-- Chave primária composta por `disciplina_id` e `requisito_id`.
+A tabela `pre_requisitos` utiliza uma chave primária composta por `disciplina_id` e `requisito_id`. Os dois campos são chaves estrangeiras que referenciam a tabela `Disciplinas`.
 
-### Relacionamentos
+### 2.2. Relacionamentos
 
 - Um curso pode possuir várias disciplinas.
 - Cada disciplina pertence a um curso.
 - Uma disciplina pode possuir vários pré-requisitos.
 - Uma disciplina pode ser pré-requisito de várias outras disciplinas.
-- A tabela `pre_requisitos` representa o relacionamento muitos-para-muitos entre disciplinas.
 
-### Diagrama relacional
+### 2.3. Diagrama do modelo relacional
 
 ![Modelo lógico relacional](banco_relacional/modelo_projeto_ciencia_de_dados.png)
 
----
+### 2.4. Justificativa
 
-## 2. Modelo Não Relacional Orientado a Documentos (MongoDB)
+O modelo relacional organiza os dados em tabelas relacionadas por chaves primárias e estrangeiras. Essa estrutura permite manter a integridade dos relacionamentos entre cursos, disciplinas e pré-requisitos, além de facilitar consultas que envolvem diferentes tabelas.
 
-### Estrutura proposta
+## 3. Modelo Não Relacional Orientado a Documentos
 
-O modelo documental utiliza uma coleção chamada `cursos`. Cada documento representa um curso e contém seus dados gerais e um array de documentos de disciplinas embutidos.
+### 3.1. Estrutura dos documentos
 
-### Coleção `cursos`
+Neste modelo, será utilizada uma coleção chamada `cursos` no MongoDB. Cada documento representa um curso e contém seus dados e uma lista de disciplinas incorporadas ao próprio documento.
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `_id` | ObjectId | Identificador único do curso |
-| `nome` | String | Nome do curso |
-| `instituicao` | String | Instituição de ensino |
-| `disciplinas` | Array de documentos | Disciplinas do currículo |
+Os campos principais são:
 
-### Campos de cada disciplina embutida
+- `_id`: identificador do documento.
+- `nome`: nome do curso.
+- `instituicao`: instituição de ensino.
+- `disciplinas`: lista de documentos incorporados, contendo:
+  - `codigo`: código da disciplina.
+  - `nome`: nome da disciplina.
+  - `carga_horaria`: carga horária.
+  - `pre_requisitos`: lista de códigos das disciplinas exigidas como pré-requisito.
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `codigo` | String | Código da disciplina |
-| `nome` | String | Nome da disciplina |
-| `carga_horaria` | Number | Carga horária da disciplina |
-| `pre_requisitos` | Array de String | Códigos das disciplinas exigidas como pré-requisito |
+### 3.2. Exemplo de documento
 
-### Exemplo de documento
-
-O exemplo abaixo é ilustrativo e não representa necessariamente os dados reais da grade curricular.
+O exemplo abaixo é ilustrativo e não representa dados oficiais de uma matriz curricular.
 
 ```json
 {
-  "_id": {
-    "$oid": "671000000000000000000001"
-  },
   "nome": "Tecnologia em Análise e Desenvolvimento de Sistemas",
   "instituicao": "UFRN",
   "disciplinas": [
@@ -91,46 +86,64 @@ O exemplo abaixo é ilustrativo e não representa necessariamente os dados reais
 }
 ```
 
-### Justificativa
-
-As disciplinas foram embutidas no documento do curso porque a aplicação precisa consultar e apresentar a estrutura curricular de forma conjunta. Essa organização permite recuperar os dados do curso e suas disciplinas em uma única consulta.
-
-Os pré-requisitos são representados por uma lista de códigos, evitando a necessidade de uma coleção exclusiva para esse relacionamento.
-
-O modelo considera um currículo por curso, sem armazenar versões históricas. A aplicação deverá validar os códigos dos pré-requisitos, pois o MongoDB não garante automaticamente que eles correspondam a disciplinas existentes.
-
-### Diagrama documental
+### 3.3. Diagrama do modelo documental
 
 ![Modelo lógico documental](banco_nao_relacional_arquivos/Diagrama_banco_nao_relacional_documento.png)
 
----
+### 3.4. Justificativa
 
-## 3. Modelo Não Relacional Orientado a Grafos
+O modelo documental permite armazenar as informações do curso e suas disciplinas em um mesmo documento. Isso pode simplificar a recuperação de uma estrutura curricular completa, pois os dados incorporados podem ser consultados juntos.
 
-Esta seção será preenchida após a definição do modelo lógico orientado a grafos.
+Os códigos dos pré-requisitos são armazenados em uma lista. Como essa representação não garante, por si só, que cada código corresponda a uma disciplina existente, a aplicação deve validar essas referências.
 
-### Nós e propriedades
+## 4. Modelo Não Relacional Orientado a Grafos
 
-A definir.
+### 4.1. Nós e propriedades
 
-### Relacionamentos
+O modelo em grafo representa os dados por meio de nós e relacionamentos direcionados.
 
-A definir.
+**Nó `Curso`**
+- `nome`: nome do curso.
+- `instituicao`: instituição de ensino.
 
-### Diagrama de grafos
+**Nó `Disciplina`**
+- `codigo`: código da disciplina.
+- `nome`: nome da disciplina.
+- `carga_horaria`: carga horária.
 
-**Inserir aqui a imagem do modelo lógico orientado a grafos.**
+### 4.2. Relacionamentos
 
-### Justificativa
+- `(:Curso)-[:POSSUI]->(:Disciplina)`: indica que um curso possui uma disciplina.
+- `(:Disciplina)-[:PRE_REQUISITO_DE]->(:Disciplina)`: indica que uma disciplina é pré-requisito de outra.
 
-A definir após a construção do modelo lógico de grafos.
+**Direção do relacionamento:** se a disciplina A é pré-requisito da disciplina B, a ligação será:
 
----
+`(Disciplina A)-[:PRE_REQUISITO_DE]->(Disciplina B)`
 
-## 4. Comparação dos Modelos
+Assim, a seta parte da disciplina exigida e aponta para a disciplina que depende dela.
 
-| Abordagem | Organização dos dados | Representação dos pré-requisitos |
-|---|---|---|
-| Relacional | Tabelas relacionadas por chaves | Tabela associativa |
-| Documental (MongoDB) | Curso com disciplinas embutidas | Array de códigos |
-| Orientada a grafos | A definir | A definir |
+### 4.3. Diagrama do modelo em grafo
+
+![Modelo lógico em grafo](banco_nao_relacional_grafo/diagrama_grafo.png)
+
+### 4.4. Justificativa
+
+O modelo orientado a grafos representa diretamente as conexões entre cursos e disciplinas, principalmente os relacionamentos de pré-requisito. Essa estrutura facilita percorrer as dependências entre disciplinas e identificar quais matérias precisam ser cursadas antes de outras.
+
+Uma possível implementação desse modelo utiliza o Neo4j, banco de dados orientado a grafos.
+
+## 5. Comparação entre os modelos
+
+| Característica | Relacional | Documental | Grafo |
+|---|---|---|---|
+| Organização | Tabelas | Documentos e listas incorporadas | Nós e relacionamentos |
+| Representação de cursos | Tabela `Curso` | Documentos na coleção `cursos` | Nós `Curso` |
+| Representação de disciplinas | Tabela `Disciplinas` | Documentos incorporados | Nós `Disciplina` |
+| Pré-requisitos | Tabela associativa | Lista de códigos | Relacionamentos direcionados |
+| Principal vantagem | Integridade e consultas relacionais | Recuperação conjunta de dados incorporados | Exploração de conexões e dependências |
+
+## 6. Considerações finais
+
+Os três modelos permitem representar uma estrutura curricular, mas possuem características diferentes. O modelo relacional organiza os dados em tabelas relacionadas; o documental agrupa informações em documentos; e o modelo em grafo destaca as conexões entre disciplinas.
+
+A comparação entre as implementações permitirá avaliar seu comportamento nas consultas utilizadas pela aplicação, considerando o tempo de resposta e as características de cada banco de dados.
