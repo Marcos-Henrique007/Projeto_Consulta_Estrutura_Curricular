@@ -1,3 +1,4 @@
+
 import json
 import os
 from pathlib import Path
@@ -18,7 +19,6 @@ def importar_curriculo():
     curso = dados["curso"]
     disciplinas = dados["disciplinas"]
 
-    # Mantém o mesmo formato de documento usado pelo Flask.
     documento = {
         "curso": {
             "nome": curso["nome"],
@@ -27,19 +27,18 @@ def importar_curriculo():
         "disciplinas": disciplinas,
     }
 
-    # Atualiza o documento do curso ou cria um se ainda não existir.
-    with MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000) as cliente:
+    # Substitui os documentos antigos pelo currículo atualizado.
+    with MongoClient(
+        MONGO_URI, serverSelectionTimeoutMS=5000
+    ) as cliente:
         colecao = cliente["tads_curricular"]["cursos"]
 
-        colecao.replace_one(
-            {"curso.nome": documento["curso"]["nome"]},
-            documento,
-            upsert=True,
-        )
+        colecao.delete_many({})
+        colecao.insert_one(documento)
 
     print(
-        "Importação concluída: "
-        f"{len(disciplinas)} disciplina(s) no MongoDB."
+        f"Importação concluída: {len(disciplinas)} "
+        "disciplina(s) no MongoDB."
     )
 
 
