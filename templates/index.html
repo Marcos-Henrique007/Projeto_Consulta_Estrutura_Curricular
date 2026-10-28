@@ -1,11 +1,42 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Consulta Curricular TADS</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <h1>Olá, mundo!</h1>
+    <header>
+        <h1>Consulta Curricular TADS</h1>
+        <p>Estrutura curricular do curso de Análise e Desenvolvimento de Sistemas</p>
+    </header>
+
+    <main>
+        <section class="painel">
+            <h2>Consultar disciplinas</h2>
+
+            <label for="banco">Banco de dados</label>
+            <select id="banco">
+                <option value="relacional">Relacional</option>
+                <option value="documental">Documental (MongoDB)</option>
+                <option value="grafo">Grafo</option>
+            </select>
+
+            <label for="busca">Código ou nome da disciplina</label>
+            <input id="busca" type="text" placeholder="Ex.: programação">
+
+            <button id="consultar">Consultar</button>
+
+            <p id="mensagem" role="status"></p>
+            <div id="resultados"></div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Projeto acadêmico — TADS / UFRN</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

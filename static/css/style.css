@@ -1,0 +1,125 @@
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #0b1120;
+    color: #e2e8f0;
+    min-height: 100vh;
+}
+
+header {
+    background: #111827;
+    border-bottom: 1px solid #263449;
+    color: #f8fafc;
+    text-align: center;
+    padding: 35px 20px;
+}
+
+header h1 {
+    margin-bottom: 12px;
+    font-size: 30px;
+}
+
+header p {
+    color: #94a3b8;
+}
+
+main {
+    width: 90%;
+    max-width: 850px;
+    margin: 40px auto;
+}
+
+.painel {
+    background: #151e2e;
+    padding: 30px;
+    border: 1px solid #263449;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.painel h2 {
+    margin-bottom: 25px;
+    color: #f8fafc;
+}
+
+label {
+    display: block;
+    font-weight: bold;
+    margin: 18px 0 8px;
+    color: #cbd5e1;
+}
+
+input,
+select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 16px;
+    background: #0b1120;
+    color: #e2e8f0;
+}
+
+input::placeholder {
+    color: #64748b;
+}
+
+input:focus,
+select:focus {
+    outline: 2px solid #3b82f6;
+    border-color: #3b82f6;
+}
+
+button {
+    width: 100%;
+    margin-top: 22px;
+    padding: 13px;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #1d4ed8;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+#mensagem {
+    margin-top: 20px;
+    color: #94a3b8;
+}
+
+#resultados {
+    margin-top: 15px;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    color: #64748b;
+}
+
+@media (max-width: 600px) {
+    header h1 {
+        font-size: 24px;
+    }
+
+    .painel {
+        padding: 20px;
+    }
+}
