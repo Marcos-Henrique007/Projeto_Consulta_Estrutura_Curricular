@@ -1,0 +1,7 @@
+﻿tipo_busca,banco,busca,resultados,repeticoes,media_ms,mediana_ms,minimo_ms,maximo_ms
+busca_por_codigo,PostgreSQL,TAD0001,1,30,0.7522,0.6146,0.4994,1.5118
+busca_por_codigo,MongoDB,TAD0001,1,30,1.2241,1.1298,0.9904,1.8098
+busca_por_codigo,Neo4j,TAD0001,1,30,3.104,3.0656,2.7006,3.6653
+busca_por_nome,PostgreSQL,Fundamentos,2,30,0.5392,0.5225,0.4996,0.787
+busca_por_nome,MongoDB,Fundamentos,2,30,1.1412,1.0753,0.9698,1.5678
+busca_por_nome,Neo4j,Fundamentos,2,30,3.2532,3.2121,2.8275,4.1514
