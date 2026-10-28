@@ -1,82 +1,240 @@
-const seletorBanco = document.getElementById("banco");
-const campoBusca = document.getElementById("busca");
+
+const banco = document.getElementById("banco");
+const busca = document.getElementById("busca");
 const botaoConsultar = document.getElementById("consultar");
 const mensagem = document.getElementById("mensagem");
-const areaResultados = document.getElementById("resultados");
+const resultados = document.getElementById("resultados");
 
-botaoConsultar.addEventListener("click", consultar);
+const formCurso = document.getElementById("formCurso");
+const listaDisciplinas = document.getElementById("listaDisciplinas");
+const mensagemCadastro = document.getElementById("mensagemCadastro");
+const resultadoCadastro = document.getElementById("resultadoCadastro");
 
-campoBusca.addEventListener("keydown", (evento) => {
-    if (evento.key === "Enter") {
-        consultar();
-    }
-});
+const disciplinas = [];
 
-async function consultar() {
-    const banco = seletorBanco.value;
-    const busca = campoBusca.value.trim();
+function criarElemento(tag, texto) {
+    const elemento = document.createElement(tag);
+    elemento.textContent = texto;
+    return elemento;
+}
 
-    if (!busca) {
-        mensagem.textContent = "Digite um código ou nome de disciplina.";
-        areaResultados.replaceChildren();
+// Consulta disciplinas no banco escolhido.
+botaoConsultar.addEventListener("click", async () => {
+    const termo = busca.value.trim();
+
+    mensagem.textContent = "";
+    resultados.replaceChildren();
+
+    if (!termo) {
+        mensagem.textContent = "Digite o código ou nome da disciplina.";
         return;
     }
 
-    botaoConsultar.disabled = true;
     mensagem.textContent = "Consultando...";
-    areaResultados.replaceChildren();
 
     try {
         const resposta = await fetch("/api/consultar", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ banco, busca })
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                banco: banco.value,
+                busca: termo
+            })
         });
 
         const dados = await resposta.json();
 
         if (!resposta.ok) {
-            throw new Error(dados.erro || "Erro na consulta.");
-        }
-
-        mensagem.textContent =
-            `${dados.quantidade} resultado(s) · ${dados.tempo_ms} ms`;
-
-        if (dados.resultados.length === 0) {
-            const aviso = document.createElement("p");
-            aviso.textContent = "Nenhuma disciplina encontrada.";
-            areaResultados.appendChild(aviso);
+            mensagem.textContent = dados.erro || "Erro na consulta.";
             return;
         }
 
-        dados.resultados.forEach((disciplina) => {
-            const cartao = document.createElement("article");
-            cartao.className = "resultado-disciplina";
+        mensagem.textContent =
+            `${dados.quantidade} resultado(s), em ${dados.tempo_ms} ms.`;
 
-            const titulo = document.createElement("h3");
-            titulo.textContent =
-                `${disciplina.codigo} — ${disciplina.nome}`;
+        for (const disciplina of dados.resultados) {
+            const card = document.createElement("article");
+            card.className = "resultado";
 
-            const creditos = document.createElement("p");
-            creditos.textContent =
-                `Créditos: ${disciplina.creditos ?? "Não informado"}`;
+            card.appendChild(criarElemento(
+                "h3",
+                `${disciplina.codigo} — ${disciplina.nome}`
+            ));
 
-            const requisitos = document.createElement("p");
-            const lista = disciplina.pre_requisitos || [];
+            card.appendChild(criarElemento(
+                "p",
+                `Créditos: ${disciplina.creditos}`
+            ));
 
-            requisitos.textContent = lista.length
-                ? `Pré-requisitos: ${lista.join(", ")}`
-                : "Pré-requisitos: não cadastrados";
+            card.appendChild(criarElemento(
+                "p",
+                `Pré-requisitos: ${
+                    (disciplina.pre_requisitos || []).join(", ") || "Nenhum"
+                }`
+            ));
 
-            cartao.append(titulo, creditos, requisitos);
-            areaResultados.appendChild(cartao);
+            card.appendChild(criarElemento(
+                "p",
+                `Alternativos: ${
+                    (disciplina.pre_requisitos_alternativos || []).join(", ")
+                    || "Nenhum"
+                }`
+            ));
+
+            resultados.appendChild(card);
+        }
+    } catch (erro) {
+        mensagem.textContent = "Não foi possível comunicar com o servidor.";
+    }
+});
+
+// Transforma os campos de pré-requisito em listas de códigos.
+function separarCodigos(texto) {
+    if (!texto.trim()) {
+        return [];
+    }
+
+    return texto.split(",")
+        .map(codigo => codigo.trim())
+        .filter(Boolean);
+}
+
+// Atualiza a lista visual de disciplinas do formulário.
+function atualizarLista() {
+    listaDisciplinas.replaceChildren();
+
+    for (const disciplina of disciplinas) {
+        const item = document.createElement("li");
+
+        item.appendChild(criarElemento(
+            "span",
+            `${disciplina.codigo} — ${disciplina.nome} (${disciplina.creditos} créditos)`
+        ));
+
+        const remover = criarElemento("button", "Remover");
+        remover.type = "button";
+        remover.addEventListener("click", () => {
+            const indice = disciplinas.findIndex(
+                d => d.codigo === disciplina.codigo
+            );
+
+            if (indice !== -1) {
+                disciplinas.splice(indice, 1);
+                atualizarLista();
+            }
         });
 
-    } catch (erro) {
-        mensagem.textContent = erro.message;
-    } finally {
-        botaoConsultar.disabled = false;
+        item.appendChild(remover);
+        listaDisciplinas.appendChild(item);
     }
 }
+
+// Adiciona uma disciplina à lista que será convertida em JSON.
+document.getElementById("adicionarDisciplina").addEventListener("click", () => {
+    const codigo = document.getElementById("codigo").value.trim();
+    const nome = document.getElementById("nomeDisciplina").value.trim();
+    const creditosTexto = document.getElementById("creditos").value;
+    const creditos = Number(creditosTexto);
+
+    if (!codigo || !nome || creditosTexto === "") {
+        mensagemCadastro.textContent =
+            "Preencha o código, o nome e os créditos da disciplina.";
+        return;
+    }
+
+    if (!Number.isInteger(creditos) || creditos < 0) {
+        mensagemCadastro.textContent =
+            "Os créditos precisam ser um inteiro não negativo.";
+        return;
+    }
+
+    if (disciplinas.some(d => d.codigo === codigo)) {
+        mensagemCadastro.textContent = "Esse código já está na lista.";
+        return;
+    }
+
+    disciplinas.push({
+        codigo,
+        nome,
+        creditos,
+        pre_requisitos: separarCodigos(
+            document.getElementById("preRequisitos").value
+        ),
+        pre_requisitos_alternativos: separarCodigos(
+            document.getElementById("preAlternativos").value
+        )
+    });
+
+    atualizarLista();
+    mensagemCadastro.textContent = `${codigo} adicionada à lista.`;
+
+    document.getElementById("codigo").value = "";
+    document.getElementById("nomeDisciplina").value = "";
+    document.getElementById("creditos").value = "";
+    document.getElementById("preRequisitos").value = "";
+    document.getElementById("preAlternativos").value = "";
+});
+
+// Envia os dados como JSON ao Flask.
+formCurso.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+
+    mensagemCadastro.textContent = "";
+    resultadoCadastro.replaceChildren();
+
+    if (disciplinas.length === 0) {
+        mensagemCadastro.textContent =
+            "Adicione pelo menos uma disciplina antes de salvar.";
+        return;
+    }
+
+    const dados = {
+        curso: {
+            nome: document.getElementById("cursoNome").value.trim(),
+            instituicao: document.getElementById("instituicao").value.trim()
+        },
+        disciplinas: disciplinas
+    };
+
+    mensagemCadastro.textContent = "Salvando JSON e atualizando bancos...";
+
+    const botao = formCurso.querySelector('button[type="submit"]');
+    botao.disabled = true;
+
+    try {
+        const resposta = await fetch("/api/cadastrar-curso", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(dados)
+        });
+
+        const retorno = await resposta.json();
+
+        mensagemCadastro.textContent =
+            retorno.mensagem || retorno.erro || "Operação concluída.";
+
+        if (retorno.bancos) {
+            const lista = document.createElement("ul");
+
+            for (const [nomeBanco, status] of Object.entries(retorno.bancos)) {
+                lista.appendChild(criarElemento(
+                    "li",
+                    `${nomeBanco}: ${status}`
+                ));
+            }
+
+            resultadoCadastro.appendChild(lista);
+        }
+
+        if (retorno.sucesso_total) {
+            disciplinas.splice(0, disciplinas.length);
+            atualizarLista();
+            formCurso.reset();
+        }
+    } catch (erro) {
+        mensagemCadastro.textContent =
+            "Erro de comunicação com o Flask.";
+    } finally {
+        botao.disabled = false;
+    }
+});

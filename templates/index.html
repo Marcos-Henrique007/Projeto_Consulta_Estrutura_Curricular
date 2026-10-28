@@ -1,15 +1,17 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Consulta Curricular TADS</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <header>
-        <h1>Consulta Curricular TADS</h1>
-        <p>Estrutura curricular do curso de Análise e Desenvolvimento de Sistemas</p>
+        <h1>Consulta Curricular</h1>
+        <p>Consulte estruturas curriculares em diferentes bancos de dados.</p>
     </header>
 
     <main>
@@ -18,18 +20,62 @@
 
             <label for="banco">Banco de dados</label>
             <select id="banco">
-                <option value="relacional">Relacional</option>
+                <option value="relacional">Relacional (PostgreSQL)</option>
                 <option value="documental">Documental (MongoDB)</option>
-                <option value="grafo">Grafo</option>
+                <option value="grafo">Grafo (Neo4j)</option>
             </select>
 
             <label for="busca">Código ou nome da disciplina</label>
             <input id="busca" type="text" placeholder="Ex.: programação">
 
-            <button id="consultar">Consultar</button>
-
+            <button id="consultar" type="button">Consultar</button>
             <p id="mensagem" role="status"></p>
             <div id="resultados"></div>
+        </section>
+
+        <section class="painel">
+            <h2>Cadastrar currículo</h2>
+
+            <form id="formCurso">
+                <label for="cursoNome">Nome do curso</label>
+                <input id="cursoNome" required
+                       value="Curso Superior de Tecnologia em Análise e Desenvolvimento de Sistemas">
+
+                <label for="instituicao">Instituição</label>
+                <input id="instituicao" required
+                       value="Universidade Federal do Rio Grande do Norte - Escola Agrícola de Jundiaí">
+
+                <h3>Disciplina</h3>
+
+                <label for="codigo">Código</label>
+                <input id="codigo" placeholder="Ex.: TAD0999">
+
+                <label for="nomeDisciplina">Nome da disciplina</label>
+                <input id="nomeDisciplina" placeholder="Ex.: Nova disciplina">
+
+                <label for="creditos">Créditos</label>
+                <input id="creditos" type="number" min="0" step="1">
+
+                <label for="preRequisitos">Pré-requisitos obrigatórios</label>
+                <input id="preRequisitos"
+                       placeholder="Ex.: TAD0102, TAD0103">
+
+                <label for="preAlternativos">Pré-requisitos alternativos</label>
+                <input id="preAlternativos"
+                       placeholder="Ex.: TAD0009, TAD0111">
+
+                <button id="adicionarDisciplina" type="button">
+                    Adicionar disciplina à lista
+                </button>
+
+                <h3>Disciplinas adicionadas</h3>
+                <p>Os códigos informados nos pré-requisitos precisam estar na lista abaixo.</p>
+                <ul id="listaDisciplinas"></ul>
+
+                <button type="submit">Salvar JSON e atualizar bancos</button>
+                <p id="mensagemCadastro" role="status"></p>
+                <div id="resultadoCadastro"></div>
+            </form>
         </section>
     </main>
 

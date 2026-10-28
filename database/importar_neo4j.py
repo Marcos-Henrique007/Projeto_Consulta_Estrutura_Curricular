@@ -1,48 +1,274 @@
 import json
 import os
 from pathlib import Path
+
 from neo4j import GraphDatabase
 
+
+# Caminho do arquivo curriculo.json
 BASE_DIR = Path(__file__).resolve().parent
-with open(BASE_DIR / "curriculo.json", encoding="utf-8") as arquivo:
+ARQUIVO_CURRICULO = BASE_DIR / "curriculo.json"
+
+
+# Carrega os dados do currículo
+with open(ARQUIVO_CURRICULO, encoding="utf-8") as arquivo:
     dados = json.load(arquivo)
 
-URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-USUARIO = os.getenv("NEO4J_USER", "neo4j")
-SENHA = os.getenv("NEO4J_PASSWORD", "tads_dev_123")
+curso = dados["curso"]
+disciplinas = dados["disciplinas"]
 
-driver = GraphDatabase.driver(URI, auth=(USUARIO, SENHA))
-driver.verify_connectivity()
 
-with driver.session() as sessao:
-    sessao.run("""
-        MERGE (c:Curso {nome: $nome, ano: $ano})
-        SET c.instituicao = $instituicao
-    """, nome=dados["curso"]["nome"], ano=dados["curso"]["ano"],
-         instituicao=dados["curso"]["instituicao"])
+# Configurações de conexão com o Neo4j
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "tads_dev_123")
 
-    # Remove apenas as disciplinas deste currículo antes de recriá-las.
-    sessao.run("""
-        MATCH (c:Curso {nome: $nome, ano: $ano})-[:OFERECE]->(d:Disciplina)
+
+# Confere se os códigos das disciplinas são únicos
+codigos = [disciplina["codigo"] for disciplina in disciplinas]
+
+if len(codigos) != len(set(codigos)):
+    raise ValueError("Existem códigos de disciplinas duplicados no JSON.")
+
+
+# Confere se todos os pré-requisitos existem no currículo
+codigos_validos = set(codigos)
+
+for disciplina in disciplinas:
+    for tipo in (
+        "pre_requisitos",
+        "pre_requisitos_alternativos"
+    ):
+        for requisito in disciplina.get(tipo, []):
+            if requisito not in codigos_validos:
+                raise ValueError(
+                    f"O pré-requisito {requisito}, informado para "
+                    f"{disciplina['codigo']}, não foi encontrado "
+                    "no curriculo.json."
+                )
+
+
+def importar_curriculo(tx, curso, disciplinas):
+    # Remove as disciplinas antigas e seus relacionamentos.
+    tx.run("""
+        MATCH (d:Disciplina)
         DETACH DELETE d
-    """, nome=dados["curso"]["nome"], ano=dados["curso"]["ano"])
+    """).consume()
 
-    for d in dados["disciplinas"]:
-        sessao.run("""
-            MATCH (c:Curso {nome: $curso_nome, ano: $ano})
-            MERGE (disc:Disciplina {codigo: $codigo})
-            SET disc.nome = $nome, disc.creditos = $creditos
-            MERGE (c)-[:OFERECE]->(disc)
-        """, curso_nome=dados["curso"]["nome"], ano=dados["curso"]["ano"],
-             codigo=d["codigo"], nome=d["nome"], creditos=d["creditos"])
+    # Cria ou atualiza o nó do curso.
+    tx.run("""
+        MERGE (c:Curso {nome: $nome})
+        SET c.instituicao = $instituicao
+    """,
+        nome=curso["nome"],
+        instituicao=curso.get("instituicao", "")
+    ).consume()
 
-    for d in dados["disciplinas"]:
-        for requisito in d.get("pre_requisitos", []):
-            sessao.run("""
+    # Cria as disciplinas e relaciona cada uma ao curso.
+    tx.run("""
+        MATCH (c:Curso {nome: $nome})
+        UNWIND $disciplinas AS item
+
+        CREATE (d:Disciplina {
+            codigo: item.codigo,
+            nome: item.nome,
+            creditos: item.creditos
+        })
+
+        MERGE (c)-[:OFERECE]->(d)
+    """,
+        nome=curso["nome"],
+        disciplinas=disciplinas
+    ).consume()
+
+    # Cria os relacionamentos dos pré-requisitos obrigatórios.
+    for disciplina in disciplinas:
+        for requisito in disciplina.get("pre_requisitos", []):
+            tx.run("""
                 MATCH (disc:Disciplina {codigo: $codigo})
                 MATCH (req:Disciplina {codigo: $requisito})
-                MERGE (req)-[:PRE_REQUISITO_DE]->(disc)
-            """, codigo=d["codigo"], requisito=requisito)
 
-driver.close()
-print(f"Importação concluída: {len(dados['disciplinas'])} disciplinas no Neo4j.")
+                MERGE (req)-[:PRE_REQUISITO_DE]->(disc)
+            """,
+                codigo=disciplina["codigo"],
+                requisito=requisito
+            ).consume()
+
+    # Cria os relacionamentos dos pré-requisitos alternativos.
+    # Basta cumprir um dos requisitos alternativos para atender à regra.
+    for disciplina in disciplinas:
+        for requisito in disciplina.get(
+            "pre_requisitos_alternativos", []
+        ):
+            tx.run("""
+                MATCH (disc:Disciplina {codigo: $codigo})
+                MATCH (req:Disciplina {codigo: $requisito})
+
+                MERGE (req)-[:PRE_REQUISITO_ALTERNATIVO_DE]->(disc)
+            """,
+                codigo=disciplina["codigo"],
+                requisito=requisito
+            ).consume()
+
+
+# Conecta ao Neo4j e importa os dados.
+driver = GraphDatabase.driver(
+    NEO4J_URI,
+    auth=(NEO4J_USER, NEO4J_PASSWORD)
+)
+
+try:
+    driver.verify_connectivity()
+
+    with driver.session() as sessao:
+        sessao.execute_write(
+            importar_curriculo,
+            curso,
+            disciplinas
+        )
+
+    print(
+        "Importação concluída com sucesso!\n"
+        f"Curso: {curso['nome']}\n"
+        f"Disciplinas importadas: {len(disciplinas)}"
+    )
+
+finally:
+    driver.close()
+    import json
+import os
+from pathlib import Path
+
+from neo4j import GraphDatabase
+
+
+# Caminho do arquivo curriculo.json
+BASE_DIR = Path(__file__).resolve().parent
+ARQUIVO_CURRICULO = BASE_DIR / "curriculo.json"
+
+
+# Carrega os dados do currículo
+with open(ARQUIVO_CURRICULO, encoding="utf-8") as arquivo:
+    dados = json.load(arquivo)
+
+curso = dados["curso"]
+disciplinas = dados["disciplinas"]
+
+
+# Configurações de conexão com o Neo4j
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "tads_dev_123")
+
+
+# Confere se os códigos das disciplinas são únicos
+codigos = [disciplina["codigo"] for disciplina in disciplinas]
+
+if len(codigos) != len(set(codigos)):
+    raise ValueError("Existem códigos de disciplinas duplicados no JSON.")
+
+
+# Confere se todos os pré-requisitos existem no currículo
+codigos_validos = set(codigos)
+
+for disciplina in disciplinas:
+    for tipo in (
+        "pre_requisitos",
+        "pre_requisitos_alternativos"
+    ):
+        for requisito in disciplina.get(tipo, []):
+            if requisito not in codigos_validos:
+                raise ValueError(
+                    f"O pré-requisito {requisito}, informado para "
+                    f"{disciplina['codigo']}, não foi encontrado "
+                    "no curriculo.json."
+                )
+
+
+def importar_curriculo(tx, curso, disciplinas):
+    # Remove as disciplinas antigas e seus relacionamentos.
+    tx.run("""
+        MATCH (d:Disciplina)
+        DETACH DELETE d
+    """).consume()
+
+    # Cria ou atualiza o nó do curso.
+    tx.run("""
+        MERGE (c:Curso {nome: $nome})
+        SET c.instituicao = $instituicao
+    """,
+        nome=curso["nome"],
+        instituicao=curso.get("instituicao", "")
+    ).consume()
+
+    # Cria as disciplinas e relaciona cada uma ao curso.
+    tx.run("""
+        MATCH (c:Curso {nome: $nome})
+        UNWIND $disciplinas AS item
+
+        CREATE (d:Disciplina {
+            codigo: item.codigo,
+            nome: item.nome,
+            creditos: item.creditos
+        })
+
+        MERGE (c)-[:OFERECE]->(d)
+    """,
+        nome=curso["nome"],
+        disciplinas=disciplinas
+    ).consume()
+
+    # Cria os relacionamentos dos pré-requisitos obrigatórios.
+    for disciplina in disciplinas:
+        for requisito in disciplina.get("pre_requisitos", []):
+            tx.run("""
+                MATCH (disc:Disciplina {codigo: $codigo})
+                MATCH (req:Disciplina {codigo: $requisito})
+
+                MERGE (req)-[:PRE_REQUISITO_DE]->(disc)
+            """,
+                codigo=disciplina["codigo"],
+                requisito=requisito
+            ).consume()
+
+    # Cria os relacionamentos dos pré-requisitos alternativos.
+    # Basta cumprir um dos requisitos alternativos para atender à regra.
+    for disciplina in disciplinas:
+        for requisito in disciplina.get(
+            "pre_requisitos_alternativos", []
+        ):
+            tx.run("""
+                MATCH (disc:Disciplina {codigo: $codigo})
+                MATCH (req:Disciplina {codigo: $requisito})
+
+                MERGE (req)-[:PRE_REQUISITO_ALTERNATIVO_DE]->(disc)
+            """,
+                codigo=disciplina["codigo"],
+                requisito=requisito
+            ).consume()
+
+
+# Conecta ao Neo4j e importa os dados.
+driver = GraphDatabase.driver(
+    NEO4J_URI,
+    auth=(NEO4J_USER, NEO4J_PASSWORD)
+)
+
+try:
+    driver.verify_connectivity()
+
+    with driver.session() as sessao:
+        sessao.execute_write(
+            importar_curriculo,
+            curso,
+            disciplinas
+        )
+
+    print(
+        "Importação concluída com sucesso!\n"
+        f"Curso: {curso['nome']}\n"
+        f"Disciplinas importadas: {len(disciplinas)}"
+    )
+
+finally:
+    driver.close()
