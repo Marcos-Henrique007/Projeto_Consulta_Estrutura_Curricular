@@ -23,6 +23,7 @@ IMPORTADOR_POSTGRES = DATABASE_DIR / "importar_postgres.py"
 IMPORTADOR_NEO4J = DATABASE_DIR / "importar_neo4j.py"
 
 # Conexões dos bancos.
+IMPORTADOR_MONGO = DATABASE_DIR / "importar_mongodb.py"
 MONGO = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"), serverSelectionTimeoutMS=3000)
 COLECAO = MONGO["tads_curricular"]["cursos"]
 
@@ -249,7 +250,11 @@ def consultar():
     try:
         resultados = consultas[banco](busca)
         duracao_ms = round((perf_counter() - inicio_tempo) * 1000, 3)
-        return jsonify({"resultados": resultados, "tempo_ms": duracao_ms})
+        return jsonify({
+            "resultados": resultados,
+            "quantidade": len(resultados),
+            "tempo_ms": duracao_ms,
+        })
     except Exception as erro:
         app.logger.exception("Erro ao consultar %s", banco)
         return jsonify({"erro": f"Erro ao consultar {banco}: {erro}"}), 500
@@ -258,31 +263,142 @@ def consultar():
 @app.post("/api/cadastrar-curso")
 def cadastrar_curso():
     try:
-        dados = validar_curriculo(request.get_json(silent=True) or {})
+        recebido = request.get_json(silent=True) or {}
 
-        # Salva o JSON primeiro: ele é a fonte de verdade dos dados curriculares.
+        if not isinstance(recebido, dict):
+            raise ValueError("Envie os dados em formato JSON.")
+
+        # Carrega o currículo atual para preservar as disciplinas.
+        if CURRICULO_JSON.exists():
+            with CURRICULO_JSON.open("r", encoding="utf-8") as arquivo:
+                atual = json.load(arquivo)
+        else:
+            atual = {"curso": {}, "disciplinas": []}
+
+        if not isinstance(atual, dict):
+            raise ValueError("O arquivo do currículo está inválido.")
+
+        curso_atual = atual.get("curso", {})
+        disciplinas_atuais = atual.get("disciplinas", [])
+
+        if not isinstance(curso_atual, dict):
+            raise ValueError("Os dados atuais do curso estão inválidos.")
+
+        if not isinstance(disciplinas_atuais, list):
+            raise ValueError("A lista atual de disciplinas está inválida.")
+
+        # Mantém os dados do curso e aceita atualizações do formulário.
+        curso = {
+            "nome": recebido.get("curso", {}).get(
+                "nome", curso_atual.get("nome", "")
+            ),
+            "instituicao": recebido.get("curso", {}).get(
+                "instituicao", curso_atual.get("instituicao", "")
+            ),
+        }
+
+        novas = recebido.get("disciplinas")
+
+        if not isinstance(novas, list) or not novas:
+            raise ValueError(
+                "O formulário precisa enviar pelo menos uma disciplina."
+            )
+
+        # Usa o código como identificador: atualiza se existir,
+        # adiciona se for uma disciplina nova.
+        por_codigo = {}
+
+        for disciplina in disciplinas_atuais:
+            if not isinstance(disciplina, dict):
+                raise ValueError("Existe uma disciplina inválida no JSON.")
+
+            codigo = str(disciplina.get("codigo", "")).strip()
+
+            if not codigo:
+                raise ValueError("Existe uma disciplina sem código no JSON.")
+
+            if codigo in por_codigo:
+                raise ValueError(f"Código duplicado no JSON: {codigo}.")
+
+            por_codigo[codigo] = disciplina
+
+        for disciplina in novas:
+            if not isinstance(disciplina, dict):
+                raise ValueError("Uma disciplina enviada está inválida.")
+
+            codigo = str(disciplina.get("codigo", "")).strip()
+
+            if not codigo:
+                raise ValueError("Informe o código da disciplina.")
+
+            por_codigo[codigo] = disciplina
+
+        # Valida o currículo completo, não apenas o que veio do formulário.
+        dados = validar_curriculo({
+            "curso": curso,
+            "disciplinas": list(por_codigo.values()),
+        })
+
+        # Persiste o JSON antes de iniciar a sincronização.
         CURRICULO_JSON.parent.mkdir(parents=True, exist_ok=True)
+
         CURRICULO_JSON.write_text(
             json.dumps(dados, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
-        # Atualiza o banco documental e executa os importadores dos outros bancos.
-        sincronizar_mongodb(dados)
-        saida_postgres = executar_importador(IMPORTADOR_POSTGRES)
-        saida_neo4j = executar_importador(IMPORTADOR_NEO4J)
+        # Cada banco é atualizado pelo seu próprio importador.
+        importadores = {
+            "PostgreSQL": IMPORTADOR_POSTGRES,
+            "MongoDB": IMPORTADOR_MONGO,
+            "Neo4j": IMPORTADOR_NEO4J,
+        }
+
+        bancos = {}
+
+        for nome, caminho in importadores.items():
+            try:
+                saida = executar_importador(caminho)
+                bancos[nome] = {
+                    "status": "Sincronizado",
+                    "detalhe": saida or "Importação concluída.",
+                }
+            except Exception as erro:
+                app.logger.exception(
+                    "Falha ao sincronizar %s", nome
+                )
+                bancos[nome] = {
+                    "status": "Erro",
+                    "detalhe": str(erro),
+                }
+
+        sucesso_total = all(
+            resultado["status"] == "Sincronizado"
+            for resultado in bancos.values()
+        )
+
+        codigo_http = 201 if sucesso_total else 207
 
         return jsonify({
-            "mensagem": "Currículo salvo no JSON e sincronizado com os bancos.",
+            "mensagem": (
+                "Currículo salvo e sincronizado nos três bancos."
+                if sucesso_total
+                else (
+                    "JSON salvo, mas houve falha na sincronização. "
+                    "Confira os detalhes de cada banco."
+                )
+            ),
             "arquivo": str(CURRICULO_JSON.relative_to(BASE_DIR)),
-            "postgres": saida_postgres,
-            "neo4j": saida_neo4j,
-        }), 201
-    except (ValueError, FileNotFoundError, RuntimeError, PyMongoError) as erro:
-        app.logger.exception("Erro ao cadastrar/sincronizar currículo")
+            "total_disciplinas": len(dados["disciplinas"]),
+            "bancos": bancos,
+            "sucesso_total": sucesso_total,
+        }), codigo_http
+
+    except (ValueError, TypeError, KeyError) as erro:
         return jsonify({"erro": str(erro)}), 400
+
     except Exception as erro:
-        app.logger.exception("Erro inesperado ao cadastrar/sincronizar currículo")
+        app.logger.exception("Erro ao cadastrar currículo")
         return jsonify({"erro": f"Erro inesperado: {erro}"}), 500
 
 

@@ -31,11 +31,12 @@ botaoConsultar.addEventListener("click", async () => {
     }
 
     mensagem.textContent = "Consultando...";
+    botaoConsultar.disabled = true;
 
     try {
         const resposta = await fetch("/api/consultar", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 banco: banco.value,
                 busca: termo
@@ -49,8 +50,10 @@ botaoConsultar.addEventListener("click", async () => {
             return;
         }
 
+        const quantidade = dados.quantidade ?? dados.resultados.length;
+
         mensagem.textContent =
-            `${dados.quantidade} resultado(s), em ${dados.tempo_ms} ms.`;
+            `${quantidade} resultado(s), em ${dados.tempo_ms} ms.`;
 
         for (const disciplina of dados.resultados) {
             const card = document.createElement("article");
@@ -85,6 +88,8 @@ botaoConsultar.addEventListener("click", async () => {
         }
     } catch (erro) {
         mensagem.textContent = "Não foi possível comunicar com o servidor.";
+    } finally {
+        botaoConsultar.disabled = false;
     }
 });
 
@@ -113,6 +118,7 @@ function atualizarLista() {
 
         const remover = criarElemento("button", "Remover");
         remover.type = "button";
+
         remover.addEventListener("click", () => {
             const indice = disciplinas.findIndex(
                 d => d.codigo === disciplina.codigo
@@ -129,22 +135,22 @@ function atualizarLista() {
     }
 }
 
-// Adiciona uma disciplina à lista que será convertida em JSON.
+// Adiciona uma disciplina à lista que será enviada ao Flask.
 document.getElementById("adicionarDisciplina").addEventListener("click", () => {
     const codigo = document.getElementById("codigo").value.trim();
     const nome = document.getElementById("nomeDisciplina").value.trim();
     const creditosTexto = document.getElementById("creditos").value;
     const creditos = Number(creditosTexto);
 
-    if (!codigo || !nome || creditosTexto === "") {
+    if (!codigo || !nome || creditosTexto.trim() === "") {
         mensagemCadastro.textContent =
             "Preencha o código, o nome e os créditos da disciplina.";
         return;
     }
 
-    if (!Number.isInteger(creditos) || creditos < 0) {
+    if (!Number.isInteger(creditos) || creditos <= 0) {
         mensagemCadastro.textContent =
-            "Os créditos precisam ser um inteiro não negativo.";
+            "Os créditos precisam ser um número inteiro maior que zero.";
         return;
     }
 
@@ -175,7 +181,7 @@ document.getElementById("adicionarDisciplina").addEventListener("click", () => {
     document.getElementById("preAlternativos").value = "";
 });
 
-// Envia os dados como JSON ao Flask.
+// Envia o currículo ao Flask e mostra o resultado da sincronização.
 formCurso.addEventListener("submit", async (evento) => {
     evento.preventDefault();
 
@@ -204,32 +210,38 @@ formCurso.addEventListener("submit", async (evento) => {
     try {
         const resposta = await fetch("/api/cadastrar-curso", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(dados)
         });
 
         const retorno = await resposta.json();
 
-        mensagemCadastro.textContent =
-            retorno.mensagem || retorno.erro || "Operação concluída.";
+        if (!resposta.ok) {
+            mensagemCadastro.textContent =
+                retorno.erro || "Não foi possível salvar o currículo.";
+        } else {
+            mensagemCadastro.textContent =
+                retorno.mensagem || "Operação concluída.";
 
-        if (retorno.bancos) {
-            const lista = document.createElement("ul");
+            if (retorno.bancos) {
+                const lista = document.createElement("ul");
 
-            for (const [nomeBanco, status] of Object.entries(retorno.bancos)) {
-                lista.appendChild(criarElemento(
-                    "li",
-                    `${nomeBanco}: ${status}`
-                ));
+                for (const [nomeBanco, status] of Object.entries(retorno.bancos)) {
+                    lista.appendChild(criarElemento(
+                        "li",
+                        `${nomeBanco}: ${status}`
+                    ));
+                }
+
+                resultadoCadastro.appendChild(lista);
             }
 
-            resultadoCadastro.appendChild(lista);
-        }
-
-        if (retorno.sucesso_total) {
-            disciplinas.splice(0, disciplinas.length);
-            atualizarLista();
-            formCurso.reset();
+            // Limpa o formulário somente quando todos os bancos confirmarem.
+            if (retorno.sucesso_total === true) {
+                disciplinas.splice(0, disciplinas.length);
+                atualizarLista();
+                formCurso.reset();
+            }
         }
     } catch (erro) {
         mensagemCadastro.textContent =
