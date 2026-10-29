@@ -351,7 +351,7 @@ A estrutura curricular utilizada como fonte está registrada em `database/curric
 
 ## 👨‍💻 Autores
 
-**Marcos Barbosa, Paolla Oliveira e Kamilly Silva**
+**Marcos Barbosa, Paolla Oliveira e Kamilly Medino**
 
 Projeto acadêmico desenvolvido no contexto do curso de Tecnologia em Análise e Desenvolvimento de Sistemas (TADS), da UFRN.
 
